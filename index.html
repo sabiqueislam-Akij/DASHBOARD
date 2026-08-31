@@ -6,7 +6,7 @@
 <title>Akij Resource | PV vs EV Portfolio Dashboard</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.2/plotly.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/3.5.1/plotly.min.js"></script>
 <style>
   html.dark{color-scheme:dark}
   body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
@@ -181,8 +181,13 @@ function loadData(){
           }))
           .filter(p => !isNaN(p.spi));
 
-        render();
-        document.getElementById("lastSync").textContent = "Synced: " + new Date().toLocaleString();
+        try{
+          render();
+          document.getElementById("lastSync").textContent = "Synced: " + new Date().toLocaleString();
+        }catch(renderErr){
+          errBox.textContent = "Data loaded but rendering failed: " + renderErr.message + " (check browser console — this is usually a charting library issue, not a sheet issue).";
+          errBox.classList.remove("hidden");
+        }
       }catch(e){
         errBox.textContent = "Sync failed: " + e.message + " — Make sure the sheet is shared as 'Anyone with the link: Viewer' and SHEET_NAME matches the tab exactly.";
         errBox.classList.remove("hidden");
