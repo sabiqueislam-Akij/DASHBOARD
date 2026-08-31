@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Akij Resource | PV vs EV Portfolio Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/3.5.1/plotly.min.js"></script>
+<style>
+  html.dark{color-scheme:dark}
+  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  ::-webkit-scrollbar{height:8px;width:8px}
+  ::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:4px}
+  .badge{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:9999px;font-size:12px;font-weight:600}
+  .sidebar-link.active{background:rgba(99,102,241,.12);color:#6366f1;font-weight:600}
+  #spinner{border-top-color:#6366f1}
+</style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors">
+
+<div class="flex min-h-screen">
+
+  <!-- Sidebar -->
+  <aside id="sidebar" class="fixed z-30 inset-y-0 left-0 w-64 -translate-x-full lg:translate-x-0 transition-transform bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 flex flex-col">
+    <div class="px-5 py-5 border-b border-slate-200 dark:border-slate-800">
+      <p class="text-lg font-bold tracking-tight">Akij Resource</p>
+      <p class="text-xs text-slate-500 dark:text-slate-400">Project Portfolio Control</p>
+    </div>
+    <nav class="flex-1 px-3 py-4 space-y-1 text-sm">
+      <a href="#overview" class="sidebar-link active flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">Overview</a>
+      <a href="#charts" class="sidebar-link flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">Visualizations</a>
+      <a href="#table" class="sidebar-link flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">Project Table</a>
+    </nav>
+    <div class="px-4 py-4 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-400">
+      <p id="lastSync">Not synced yet</p>
+      <p class="mt-1">Source: PV vs EV Sheet (Apr–Aug 2026)</p>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="flex-1 lg:ml-64 min-w-0">
+    <!-- Topbar -->
+    <header class="sticky top-0 z-20 bg-white/80 dark:bg-slate-950/80 backdrop-blur border-b border-slate-200 dark:border-slate-800 px-4 lg:px-8 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <button id="menuBtn" class="lg:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">☰</button>
+        <h1 class="text-base lg:text-lg font-semibold">Ongoing Projects — Schedule Performance</h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="syncBtn" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm">
+          <span id="spinner" class="hidden h-4 w-4 rounded-full border-2 border-slate-200 animate-spin"></span>
+          <span id="syncLabel">Synchronize Live Data</span>
+        </button>
+        <button id="themeBtn" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700" title="Toggle theme">🌓</button>
+      </div>
+    </header>
+
+    <main class="px-4 lg:px-8 py-6 space-y-8">
+      <div id="errorBox" class="hidden rounded-lg border border-red-300 bg-red-50 dark:bg-red-950/40 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 text-sm"></div>
+
+      <!-- KPI Cards -->
+      <section id="overview" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
+          <p class="text-xs uppercase tracking-wide text-slate-400">Total Active Projects</p>
+          <p id="kpiCount" class="text-3xl font-bold mt-2">–</p>
+        </div>
+        <div class="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
+          <p class="text-xs uppercase tracking-wide text-slate-400">Average SPI (Portfolio)</p>
+          <p id="kpiSpi" class="text-3xl font-bold mt-2">–</p>
+        </div>
+        <div class="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
+          <p class="text-xs uppercase tracking-wide text-slate-400">Total Planned Value (BDT)</p>
+          <p id="kpiPv" class="text-2xl font-bold mt-2">–</p>
+        </div>
+        <div class="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
+          <p class="text-xs uppercase tracking-wide text-slate-400">Total Earned Value (BDT)</p>
+          <p id="kpiEv" class="text-2xl font-bold mt-2">–</p>
+        </div>
+      </section>
+
+      <!-- Charts -->
+      <section id="charts" class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div class="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
+          <p class="font-semibold mb-1">SPI by Project</p>
+          <div id="spiChart" class="w-full h-96"></div>
+        </div>
+        <div class="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
+          <p class="font-semibold mb-1">RACI Workload Distribution</p>
+          <div id="raciChart" class="w-full h-96"></div>
+        </div>
+      </section>
+
+      <!-- Table -->
+      <section id="table" class="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+          <p class="font-semibold">Project Register</p>
+          <input id="searchBox" type="text" placeholder="Search project, SBU, owner..." class="w-full sm:w-72 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead>
+              <tr class="text-left text-xs uppercase text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                <th class="py-2 pr-4">Project Name</th>
+                <th class="py-2 pr-4">SBU</th>
+                <th class="py-2 pr-4">Accountable (A)</th>
+                <th class="py-2 pr-4">Responsible (R)</th>
+                <th class="py-2 pr-4">Consulted (C)</th>
+                <th class="py-2 pr-4">Informed (I)</th>
+                <th class="py-2 pr-4">SPI</th>
+                <th class="py-2 pr-4">Status</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+          </table>
+        </div>
+        <p id="rowCount" class="text-xs text-slate-400 mt-3"></p>
+      </section>
+
+      <footer class="text-center text-xs text-slate-400 py-4">Akij Resource Ltd. — Project Department · Data reflects the last synchronized snapshot</footer>
+    </main>
+  </div>
+</div>
+
+<script>
+/* ======================= CONFIG — edit these to point at your own sheet ======================= */
+const SPREADSHEET_ID = "1KgWYlixbsjCUVeV6ZtPb_X4XPubxyr7rbgqKik7oHYE"; // Google Sheet ID (from the sheet URL)
+const SHEET_NAME      = "RACI matrix August";                          // Exact tab name to read (must be Published to web / Anyone-with-link viewable)
+/* CSV is fetched via Google's public gviz endpoint — no API key needed once the sheet is shared as "Anyone with link: Viewer". */
+const CSV_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_NAME)}`;
+/* ================================================================================================ */
+
+let rows = [];
+
+function parseNum(v){
+  if(v===undefined||v===null) return NaN;
+  const n = parseFloat(String(v).replace(/[,%\s]/g,""));
+  return isNaN(n)?NaN:n;
+}
+
+function statusFor(spi){
+  if(spi>=0.98) return {label:"On Track", cls:"bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"};
+  if(spi>=0.90) return {label:"Needs Attention", cls:"bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"};
+  return {label:"Behind Schedule", cls:"bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"};
+}
+
+function colorFor(spi){
+  if(spi>=0.98) return "#10b981";
+  if(spi>=0.90) return "#f59e0b";
+  return "#ef4444";
+}
+
+function loadData(){
+  const spinner=document.getElementById("spinner"), label=document.getElementById("syncLabel"), errBox=document.getElementById("errorBox");
+  spinner.classList.remove("hidden"); label.textContent="Syncing..."; errBox.classList.add("hidden");
+  Papa.parse(CSV_URL + "&cachebust=" + Date.now(), {
+    download:true,
+    complete:function(res){
+      try{
+        const data = res.data;
+        // Find header row (contains "Project Name")
+        let headerIdx = data.findIndex(r => r.some(c => String(c).trim() === "Project Name"));
+        if(headerIdx === -1) throw new Error("Header row not found in sheet — check SHEET_NAME.");
+        const headers = data[headerIdx].map(h=>String(h).trim());
+        const col = name => headers.indexOf(name);
+        const iSbu=col("SBU"), iName=col("Project Name"), iPv=col("Sum of Planned Value (BDT)"),
+              iEv=col("Sum of Earned  Value (BDT)"), iSpi=col("SPI"), iResp=col("Responsible"),
+              iAcc=col("Accountable"), iCons=col("Consulted"), iInf=col("Informed");
+
+        rows = data.slice(headerIdx+1)
+          .filter(r => r[iName] && String(r[iName]).trim() && String(r[iSbu]||"").trim().toLowerCase() !== "total" && String(r[iName]).trim().toLowerCase()!=="total")
+          .map(r => ({
+            sbu: (r[iSbu]||"").trim(),
+            name: (r[iName]||"").trim(),
+            pv: parseNum(r[iPv]),
+            ev: parseNum(r[iEv]),
+            spi: parseNum(r[iSpi])/ (String(r[iSpi]||"").includes("%")?100:1),
+            responsible: (iResp>-1? r[iResp]:"" || "").trim(),
+            accountable: (iAcc>-1? r[iAcc]:"" || "").trim(),
+            consulted: (iCons>-1? r[iCons]:"" || "").trim(),
+            informed: (iInf>-1? r[iInf]:"" || "").trim(),
+          }))
+          .filter(p => !isNaN(p.spi));
+
+        try{
+          render();
+          document.getElementById("lastSync").textContent = "Synced: " + new Date().toLocaleString();
+        }catch(renderErr){
+          errBox.textContent = "Data loaded but rendering failed: " + renderErr.message + " (check browser console — this is usually a charting library issue, not a sheet issue).";
+          errBox.classList.remove("hidden");
+        }
+      }catch(e){
+        errBox.textContent = "Sync failed: " + e.message + " — Make sure the sheet is shared as 'Anyone with the link: Viewer' and SHEET_NAME matches the tab exactly.";
+        errBox.classList.remove("hidden");
+      } finally {
+        spinner.classList.add("hidden"); label.textContent="Synchronize Live Data";
+      }
+    },
+    error:function(err){
+      errBox.textContent = "Could not reach Google Sheets: " + err;
+      errBox.classList.remove("hidden");
+      spinner.classList.add("hidden"); label.textContent="Synchronize Live Data";
+    }
+  });
+}
+
+function isDark(){ return document.documentElement.classList.contains("dark"); }
+function paperColors(){ return isDark()? {bg:"rgba(0,0,0,0)", grid:"#334155", font:"#cbd5e1"} : {bg:"rgba(0,0,0,0)", grid:"#e2e8f0", font:"#334155"}; }
+
+function render(){
+  const count = rows.length;
+  const avgSpi = rows.reduce((s,p)=>s+p.spi,0)/(count||1);
+  const totalPv = rows.reduce((s,p)=>s+(isNaN(p.pv)?0:p.pv),0);
+  const totalEv = rows.reduce((s,p)=>s+(isNaN(p.ev)?0:p.ev),0);
+
+  document.getElementById("kpiCount").textContent = count;
+  document.getElementById("kpiSpi").textContent = (avgSpi*100).toFixed(2)+"%";
+  document.getElementById("kpiPv").textContent = totalPv.toLocaleString("en-BD",{maximumFractionDigits:0});
+  document.getElementById("kpiEv").textContent = totalEv.toLocaleString("en-BD",{maximumFractionDigits:0});
+
+  drawSpiChart();
+  drawRaciChart();
+  drawTable(rows);
+
+  document.getElementById("searchBox").oninput = (e)=>{
+    const q = e.target.value.toLowerCase();
+    drawTable(rows.filter(p => [p.name,p.sbu,p.accountable,p.responsible].join(" ").toLowerCase().includes(q)));
+  };
+}
+
+function drawSpiChart(){
+  const pc = paperColors();
+  const sorted = [...rows].sort((a,b)=>a.spi-b.spi);
+  Plotly.newPlot("spiChart", [{
+    type:"bar",
+    x: sorted.map(p=>p.name),
+    y: sorted.map(p=>p.spi),
+    marker:{color: sorted.map(p=>colorFor(p.spi))},
+    hovertemplate: "%{x}<br>SPI: %{y:.2%}<extra></extra>"
+  }], {
+    paper_bgcolor:pc.bg, plot_bgcolor:pc.bg, font:{color:pc.font, size:11},
+    margin:{t:10,b:120,l:50,r:10},
+    yaxis:{tickformat:".0%", gridcolor:pc.grid, title:"SPI"},
+    xaxis:{tickangle:-45, automargin:true},
+    shapes:[{type:"line",x0:-0.5,x1:sorted.length-0.5,y0:1,y1:1,line:{color:"#6366f1",dash:"dash",width:2}}],
+    annotations:[{x:sorted.length-1,y:1,text:"Target 1.0",showarrow:false,yshift:12,font:{color:"#6366f1",size:10}}]
+  }, {responsive:true, displayModeBar:false});
+}
+
+function drawRaciChart(){
+  const pc = paperColors();
+  const counts = {};
+  rows.forEach(p=>{
+    if(p.accountable){ counts[p.accountable]=counts[p.accountable]||{A:0,R:0}; counts[p.accountable].A++; }
+    if(p.responsible){ counts[p.responsible]=counts[p.responsible]||{A:0,R:0}; counts[p.responsible].R++; }
+  });
+  const people = Object.keys(counts).sort();
+  Plotly.newPlot("raciChart", [
+    {type:"bar", name:"Accountable", x:people, y:people.map(p=>counts[p].A), marker:{color:"#6366f1"}},
+    {type:"bar", name:"Responsible", x:people, y:people.map(p=>counts[p].R), marker:{color:"#0ea5e9"}}
+  ], {
+    barmode:"stack",
+    paper_bgcolor:pc.bg, plot_bgcolor:pc.bg, font:{color:pc.font, size:11},
+    margin:{t:10,b:100,l:40,r:10},
+    xaxis:{tickangle:-45, automargin:true},
+    yaxis:{gridcolor:pc.grid, title:"# Projects"},
+    legend:{orientation:"h", y:1.1}
+  }, {responsive:true, displayModeBar:false});
+}
+
+function drawTable(list){
+  const body = document.getElementById("tableBody");
+  body.innerHTML = list.map(p=>{
+    const s = statusFor(p.spi);
+    return `<tr class="hover:bg-slate-50 dark:hover:bg-slate-900">
+      <td class="py-2 pr-4 font-medium">${p.name}</td>
+      <td class="py-2 pr-4 text-slate-500">${p.sbu}</td>
+      <td class="py-2 pr-4">${p.accountable||"–"}</td>
+      <td class="py-2 pr-4">${p.responsible||"–"}</td>
+      <td class="py-2 pr-4 text-slate-400">${p.consulted||"–"}</td>
+      <td class="py-2 pr-4 text-slate-400">${p.informed||"–"}</td>
+      <td class="py-2 pr-4">${(p.spi*100).toFixed(1)}%</td>
+      <td class="py-2 pr-4"><span class="badge ${s.cls}">${s.label}</span></td>
+    </tr>`;
+  }).join("");
+  document.getElementById("rowCount").textContent = `${list.length} of ${rows.length} projects shown`;
+}
+
+// Theme toggle
+const themeBtn=document.getElementById("themeBtn");
+function applyTheme(t){ document.documentElement.classList.toggle("dark", t==="dark"); localStorage.setItem("arl-theme", t); if(rows.length){drawSpiChart();drawRaciChart();} }
+applyTheme(localStorage.getItem("arl-theme") || (window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"));
+themeBtn.onclick = ()=> applyTheme(isDark()?"light":"dark");
+
+// Sidebar mobile toggle
+const sidebar=document.getElementById("sidebar");
+document.getElementById("menuBtn").onclick = ()=> sidebar.classList.toggle("-translate-x-full");
+
+document.getElementById("syncBtn").onclick = loadData;
+loadData();
+</script>
+</body>
+</html>
